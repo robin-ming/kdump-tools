@@ -1,3 +1,21 @@
+kdump-tools (1:1.10.3deepin3) unstable; urgency=medium
+
+  * Default to automatic host-only capture images on loong64.
+  * Collect mounted storage/network drivers without manual module lists.
+  * Resolve the root block device by its major/minor number.
+  * Filter live/KMS/splash hooks locally, without updating their packages.
+  * Install the wrapper and its util-linux dependency only on loong64.
+  * Require the matching kexec-tools revision only on loong64.
+  * Preserve other architectures' automatic module policy.
+  * Regenerate the loong64 capture image automatically during configure.
+  * Use 512/1024/1536/2048 MiB LoongArch crashkernel reservation tiers.
+  * Handle overlay /usr and capture initrd generation failures.
+  * Propagate capture image/load failures through the CLI and init script.
+  * Allow an explicit KDUMP_MODULES policy using standard module lists.
+  * Export the existing KDUMP marker for capture initramfs hooks.
+
+ -- Ming Wang <wangming01@loongson.cn>  Fri, 09 Oct 2026 14:40:00 +0800
+
 kdump-tools (1:1.10.3deepin2) unstable; urgency=medium
 
   * Remove shellcheck from Build-Depends: it is not available in the deepin

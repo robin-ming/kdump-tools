@@ -12,6 +12,15 @@ else
 	SUBSTVARS = -Vdist:Depends="kexec-tools"
 endif
 
+ifeq ($(DEB_HOST_ARCH),loong64)
+	SUBSTVARS = -Vdist:Depends="kexec-tools (>= 1:2.0.29-0deepin3)"
+	SUBSTVARS += -Vloong64:Depends="util-linux"
+	KDUMP_INITRD_PROFILE = hostonly
+else
+	SUBSTVARS += -Vloong64:Depends=""
+	KDUMP_INITRD_PROFILE = standard
+endif
+
 KDUMP_CMDLINE_APPEND = reset_devices systemd.unit=kdump-tools-dump.service
 ifeq ($(DEB_HOST_ARCH),arm64)
 	KDUMP_CMDLINE_APPEND += nr_cpus=1
@@ -27,7 +36,7 @@ endif
 override_dh_gencontrol:
 	dh_gencontrol -- $(SUBSTVARS)
 
-kdump_cmdline_insert = sed "s/@KDUMP_CMDLINE_APPEND@/$(KDUMP_CMDLINE_APPEND)/" < $< > $@
+kdump_cmdline_insert = sed -e "s/@KDUMP_CMDLINE_APPEND@/$(KDUMP_CMDLINE_APPEND)/" -e "s/@KDUMP_INITRD_PROFILE@/$(KDUMP_INITRD_PROFILE)/" < $< > $@
 debian/kdump-config: debian/kdump-config.in
 	$(kdump_cmdline_insert)
 debian/kdump-tools.conf: debian/kdump-tools.conf.in
@@ -40,6 +49,8 @@ override_dh_install: debian/kdump-config debian/kdump-tools.conf debian/kdump-to
 	dh_installdirs
 	install -D -m 755 debian/kernel-postinst-generate-initrd debian/kdump-tools/etc/kernel/postinst.d/kdump-tools
 	install -D -m 755 debian/kernel-postrm-delete-initrd debian/kdump-tools/etc/kernel/postrm.d/kdump-tools
+	[ "$(DEB_HOST_ARCH)" != loong64 ] || \
+		install -D -m 755 debian/mkinitramfs-filtered debian/kdump-tools/usr/share/kdump-tools/mkinitramfs-filtered
 	install -D -m 755 debian/initramfs.hook debian/kdump-tools/usr/share/initramfs-tools/hooks/kdump-tools
 	install -D -m 755 debian/initramfs.local-bottom \
 debian/kdump-tools/usr/share/initramfs-tools/scripts/local-bottom/kdump-sysctl

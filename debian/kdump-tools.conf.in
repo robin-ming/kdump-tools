@@ -101,3 +101,8 @@ KDUMP_COREDIR="/var/crash"
 #           remote server
 #SSH="<user at server>"
 #SSH_KEY="<path>"
+
+# Capture image profile: hostonly on loong64, standard elsewhere.
+# The loong64 default collects installed-system storage/network drivers
+# automatically and filters live/KMS/splash hooks without updating their packages.
+KDUMP_INITRD_PROFILE="@KDUMP_INITRD_PROFILE@"

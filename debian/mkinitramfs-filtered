@@ -1,0 +1,16 @@
+#!/bin/sh
+# Filter desktop/live hooks for a LoongArch MODULES=list capture image only.
+set -eu
+hookdir=$(mktemp -d "${TMPDIR:-/var/tmp}/kdump-hooks.XXXXXX")
+trap 'rm -rf "$hookdir"' EXIT HUP INT TERM
+cp -a /usr/share/initramfs-tools/hooks/. "$hookdir/"
+# Retain immutable, encryption, storage and filesystem hooks. These three
+# hooks add live-media support, generic graphics drivers and splash assets.
+rm -f "$hookdir/live" "$hookdir/kms" "$hookdir/plymouth"
+unshare --mount --propagation private sh -c '
+    set -e
+    hookdir=$1
+    shift
+    mount --bind "$hookdir" /usr/share/initramfs-tools/hooks
+    exec mkinitramfs "$@"
+' sh "$hookdir" "$@"

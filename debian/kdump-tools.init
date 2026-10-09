@@ -43,7 +43,7 @@ case "$1" in
 	#
 	else
 		printf "Starting %s: " "$DESC"
-		$KDUMP_SCRIPT load
+		$KDUMP_SCRIPT load || exit $?
 	fi
 	;;
   stop)
@@ -56,7 +56,7 @@ case "$1" in
   restart|force-reload)
   	# alias the required 'force-reload' option
 	$KDUMP_SCRIPT unload
-	$KDUMP_SCRIPT load
+	$KDUMP_SCRIPT load || exit $?
 	;;
   *)
 	echo "Usage: $0 {start|stop|status|restart|force-reload}"

@@ -68,3 +68,31 @@ may still be required.  Specifically:
    You can manually trigger a kernel crash by using the magic SysRq
    key. SysRq usage is described in details in the kernel documentation
    (https://www.kernel.org/doc/html/latest/admin-guide/sysrq.html)
+
+Default LoongArch small capture image
+------------------------------------
+The loong64 package defaults to KDUMP_INITRD_PROFILE="hostonly". Its hook
+collects mounted block storage, filesystem modules, current network drivers
+and supporting device classes automatically. No KDUMP_MODULES setting or
+manual driver list is required for the default local-dump configuration.
+
+A kdump-owned wrapper copies the hooks and omits live, kms and plymouth in
+a private mount namespace. Original system hooks, live-boot and plymouth
+packages are not modified. The wrapper requires root mount capabilities;
+failures abort generation. Normal boot images and other architectures retain
+their existing paths; only loong64 installs the wrapper and its dependency.
+The same source tree builds the architecture-specific default configuration.
+
+Explicit opt-out on loong64: set KDUMP_INITRD_PROFILE="standard". Existing
+administrator choices are still managed by the normal ucf mechanism.
+Unusual unmounted dump devices and remote-storage configurations still need
+appropriate target-specific configuration. No universal memory minimum is
+claimed for physical machines or operation without swap.
+
+LoongArch crashkernel reservations
+---------------------------------
+The default GRUB policy reserves 512 MiB for 2-4 GiB RAM, 1024 MiB for
+4-32 GiB, 1536 MiB for 32-64 GiB, and 2048 MiB for 64 GiB and above.
+Range starts are inclusive and ends exclusive. Reboot after package
+installation to apply the reservation; package hooks generate the image.
+The new default profile still requires complete validation on the target.

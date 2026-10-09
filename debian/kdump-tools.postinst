@@ -78,13 +78,27 @@ case "$1" in
 	# and we already created the minimal initrd for kdump, let's
 	# force it to be recreated (to expose its size to the estimator).
 	KDIR="/var/lib/kdump"
-	if [ ! -f "${KDIR}/size_initrd.img-$(uname -r)" ] && [ -f "${KDIR}/initrd.img-$(uname -r)" ]; then
+	if [ "$(dpkg --print-architecture)" != loong64 ] &&
+	   [ ! -f "${KDIR}/size_initrd.img-$(uname -r)" ] &&
+	   [ -f "${KDIR}/initrd.img-$(uname -r)" ]; then
 		if [ -x /etc/kernel/postinst.d/kdump-tools ]; then
 			/etc/kernel/postinst.d/kdump-tools "$(uname -r)"
 		else
 			logger "kdump-tools: couldn't recreate kdump initrd for the memory estimator"
 		fi
 	fi
+	# Apply the LoongArch default on installation and upgrades without
+	# requiring an administrator to rebuild a stale capture image.
+	if [ "$(dpkg --print-architecture)" = loong64 ] &&
+	   [ -x /etc/kernel/postinst.d/kdump-tools ]; then
+		(
+			. /etc/default/kdump-tools
+			if [ "${USE_KDUMP-0}" = 1 ]; then
+				/etc/kernel/postinst.d/kdump-tools "$(uname -r)"
+			fi
+		)
+	fi
+
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

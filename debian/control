@@ -21,6 +21,7 @@ Depends: bsdextrautils | bsdmainutils,
          linux-base,
          lsb-base (>= 3.0-6),
          ucf,
+         ${loong64:Depends},
          ${dist:Depends},
          ${misc:Depends},
          ${shlibs:Depends}

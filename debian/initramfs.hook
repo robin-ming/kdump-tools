@@ -32,6 +32,39 @@ fi
 
 . /usr/share/initramfs-tools/hook-functions
 
+# Collect installed-system storage/network dependencies only for the
+# LoongArch capture profile. Regular boot images and other architectures
+# execute the original sysctl-copying path below.
+if [ "${DPKG_ARCH-}" = loong64 ] && [ "${KDUMP_HOSTONLY-}" = y ]; then
+	# Resolve the root by its device number, even when /proc/mounts names
+	# /dev/root but no such node exists in the current namespace.
+	root_devno=$(findmnt -n -o MAJ:MIN --mountpoint /)
+	root_fstype=$(findmnt -n -o FSTYPE --mountpoint /)
+	if [ -n "$root_devno" ] && [ -d "/sys/dev/block/$root_devno" ]; then
+	    manual_add_modules "$root_fstype"
+	    block_dev_sys_walk_mod_add "/sys/dev/block/$root_devno"
+	else
+	    dep_add_modules_mount /
+	fi
+	# Overlay mount sources are not block devices. Include mounted block
+	# filesystems conservatively, covering their backing storage and dump targets.
+	while read -r device mountpoint fstype options rest; do
+	    [ "$mountpoint" = / ] && continue
+	    [ -b "$device" ] || continue
+	    manual_add_modules "$fstype"
+	    block_dev_mod_add "$device"
+	done < /proc/mounts
+	manual_add_modules overlay
+	# Retain drivers needed by the current network interfaces for remote dumps.
+	class_add_modules net
+	for class in extcon gpio phy pwm regulator rtc; do
+	    class_add_modules "$class"
+	done
+	add_loaded_modules 'clk[-_]*'
+	add_loaded_modules 'phy[-_]*'
+	add_loaded_modules 'pinctrl[-_]*'
+fi
+
 KDUMP_SYSCTL_PATH="/etc/kdump/sysctl.conf"
 
 # Avoid stopping the initrd generation in case of no sysctl overrides

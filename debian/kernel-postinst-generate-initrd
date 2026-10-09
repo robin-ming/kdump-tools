@@ -47,10 +47,39 @@ for conf_file in /etc/initramfs-tools/conf.d/*; do
 	fi
 done
 
-if test "${MODULES-most}" = most; then
-	# Switch from "most" to "dep" to reduce the size of the initramfs.
-	# "netboot" and "list" are expected to be already small enough.
-	KDUMP_MODULES=dep
+# Keep the new default profile confined to LoongArch. Other architectures
+# retain the automatic module policy and direct mkinitramfs invocation.
+KDUMP_HOSTONLY=n
+KDUMP_MODULES=$(if [ -r /etc/default/kdump-tools ]; then
+	. /etc/default/kdump-tools
+	printf '%s' "${KDUMP_MODULES-}"
+else
+	printf '%s' "${KDUMP_MODULES-}"
+fi)
+case "$KDUMP_MODULES" in
+	''|most|dep|list|netboot) ;;
+	*) echo "kdump-tools: invalid KDUMP_MODULES: $KDUMP_MODULES" >&2; exit 1 ;;
+esac
+if [ "$(dpkg --print-architecture)" = loong64 ]; then
+	KDUMP_INITRD_PROFILE=$(if [ -r /etc/default/kdump-tools ]; then
+		. /etc/default/kdump-tools
+		printf '%s' "${KDUMP_INITRD_PROFILE-hostonly}"
+	else
+		printf '%s' hostonly
+	fi)
+	case "$KDUMP_INITRD_PROFILE" in
+		hostonly) KDUMP_HOSTONLY=y; KDUMP_MODULES=list ;;
+		standard) ;;
+		*) echo "kdump-tools: invalid KDUMP_INITRD_PROFILE: $KDUMP_INITRD_PROFILE" >&2; exit 1 ;;
+	esac
+fi
+
+if [ -z "$KDUMP_MODULES" ] && test "${MODULES-most}" = most; then
+	# Keep other architectures on their original most-to-dep policy.
+	if [ "$(dpkg --print-architecture)" != loong64 ] ||
+	   [ "$(findmnt -n -o FSTYPE --mountpoint /usr 2>/dev/null)" != overlay ]; then
+		KDUMP_MODULES=dep
+	fi
 fi
 
 # We need a modified copy of initramfs-tools directory
@@ -73,6 +102,11 @@ if test -n "${KDUMP_MODULES-}" -a "${KDUMP_MODULES-}" != "${MODULES}"; then
 	echo "MODULES=${KDUMP_MODULES}" > "$initramfsdir/conf.d/zzz-kdump"
 fi
 
+if [ "$KDUMP_HOSTONLY" = y ]; then
+	mkdir -p "$initramfsdir/conf.d"
+	printf 'export KDUMP_HOSTONLY=y\nRESUME=none\n' >> "$initramfsdir/conf.d/zzz-kdump"
+fi
+
 # Add scsi_dh_* modules if in use otherwise
 # kexec reboot on multipath will fail
 # (LP: #1635597)
@@ -88,7 +122,7 @@ done
 # innocuous /harmless on Debian - kept here for better code
 # sync between Debian and Ubuntu. We needed special checks on
 # hook/script in Debian to prevent them on regular initrd.
-echo "KDUMP=y" >> $initramfsdir/initramfs.conf
+echo "export KDUMP=y" >> $initramfsdir/initramfs.conf
 
 # Cleaning up existing initramfs with same version
 # as mkinitramfs do not have a force option
@@ -103,9 +137,16 @@ INITRD_TMPDIR="$(mktemp -d)"
 INITRD_FNAME="initrd.img-${version}"
 INITRD_CMDLINE=" -k -d ${initramfsdir} -o ${kdumpdir}/${INITRD_FNAME}.new ${version}"
 
+# The LoongArch default profile filters live/KMS/splash hooks locally.
+# The installed hooks remain unchanged; normal boot generation is unaffected.
+MKINITRAMFS=mkinitramfs
+if [ "$KDUMP_HOSTONLY" = y ]; then
+	MKINITRAMFS=/usr/share/kdump-tools/mkinitramfs-filtered
+fi
+
 # NB: we *want* to split on spaces in INITRD_CMDLINE, so disable this check here
 # shellcheck disable=SC2086
-if TMPDIR=${INITRD_TMPDIR} mkinitramfs ${INITRD_CMDLINE} 1>/dev/null; then
+if TMPDIR=${INITRD_TMPDIR} "$MKINITRAMFS" ${INITRD_CMDLINE} 1>/dev/null; then
 	mv "${kdumpdir}/${INITRD_FNAME}.new" "${kdumpdir}/${INITRD_FNAME}"
 
 	# Retain the initrd decompressed size in order potential users (like

@@ -670,27 +670,33 @@ kdump_create_symlinks()
 {
 	kernel_version=$1
 
-	if [ -e $sys_kexec_crash ] && [ "$(cat $sys_kexec_crash)" -eq 1 ] ; then
+	if [ -e "$sys_kexec_crash" ] && [ "$(cat "$sys_kexec_crash")" -eq 1 ]; then
 		log_failure_msg "Cannot change symbolic links when kdump is loaded"
-		exit 1
+		return 1
 	fi
 
-	if [ -e "/boot/vmlinux-${kernel_version}" ] || [ -e "/boot/vmlinuz-${kernel_version}" ]; then
-		create_symlink vmlinuz "$kernel_version"
-
-		if [ -f "$KDUMP_DIR/initrd.img-${kernel_version}" ]; then
-			create_symlink initrd.img "${kernel_version}"
-		else
-			if [ -x $KDUMP_KERNEL_HOOK ];then
-				$KDUMP_KERNEL_HOOK "$kernel_version"
-				create_symlink initrd.img "$kernel_version"
-			else
-				log_failure_msg "Unable to locate kernel hook"
-			fi
-		fi
-	else
+	if [ ! -e "/boot/vmlinux-${kernel_version}" ] &&
+	   [ ! -e "/boot/vmlinuz-${kernel_version}" ]; then
 		log_failure_msg "Invalid kernel version : $kernel_version"
+		return 1
 	fi
+
+	create_symlink vmlinuz "$kernel_version"
+
+	if [ ! -f "$KDUMP_DIR/initrd.img-${kernel_version}" ]; then
+		if [ ! -x "$KDUMP_KERNEL_HOOK" ] ||
+		   ! "$KDUMP_KERNEL_HOOK" "$kernel_version"; then
+			log_failure_msg "Unable to generate kdump initrd for $kernel_version"
+			return 1
+		fi
+	fi
+
+	if [ ! -f "$KDUMP_DIR/initrd.img-${kernel_version}" ]; then
+		log_failure_msg "Kdump initrd is missing for $kernel_version"
+		return 1
+	fi
+
+	create_symlink initrd.img "$kernel_version"
 }
 #
 # Load the already determined kdump kernel and kdump initrd using kexec
@@ -1299,7 +1305,7 @@ load()
 	else
 		check_kdump_support;
 		check_sysctl_change "$KVER"
-		kdump_create_symlinks "$KVER"
+		kdump_create_symlinks "$KVER" || return 1
 		manage_symlinks;
 		locate_kdump_kernel;
 		kdump_load
@@ -1357,16 +1363,16 @@ case "$1" in
 	kdump_show
 	;;
   load)
-	load
+	load || exit $?
 	;;
   unload)
 	unload
 	;;
   reload)
-	reload
+	reload || exit $?
 	;;
   condreload|try-reload)
-	condreload 9>"$lock_file"
+	condreload 9>"$lock_file" || exit $?
 	;;
   status)
 	if [ "$DUMP_MODE" = "fadump" ]; then
@@ -1407,8 +1413,9 @@ case "$1" in
   symlinks)
 	if [ -z "$2" ];then
 		log_failure_msg "Invalid argument : missing kernel version"
+		exit 1
 	else
-		kdump_create_symlinks "$2"
+		kdump_create_symlinks "$2" || exit $?
 	fi
 	;;
   help|-h*|--h*)
